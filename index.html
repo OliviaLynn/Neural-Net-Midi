@@ -1,0 +1,260 @@
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/webmidi@2.0.0"></script>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+<body>
+<script>
+/*
+WebMidi.enable(function (err) {
+
+  if (err) {
+    console.log("WebMidi could not be enabled.", err);
+  } else {
+    console.log("WebMidi enabled!");
+    console.log(WebMidi.inputs);
+    console.log(WebMidi.outputs);
+      
+    var output = WebMidi.outputs[0];
+    output.playNote("C3");
+    var counter = 0;
+    window.setInterval(function(){
+      /// call your function here
+        counter++;
+        console.log(counter);
+        if (counter > 10) {
+            clearInterval();
+        }
+        output.playNote("C3", 1, {duration: 100});
+    }, 500);
+      
+    
+  }
+  
+});
+*/
+    /*
+var svg = d3.select("body")
+                .append("Svg")
+                .attr("width", 400)
+                .attr("height", 400);
+
+var bg = svg.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", 400)
+        .attr("height", 400)
+        .attr("color", "red");
+    */
+    
+var bodySelection = d3.select("body");
+ 
+var svgSelection = bodySelection.append("svg")
+                                 .attr("width", 800)
+                                 .attr("height", 800);
+ 
+var backgound = svgSelection.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", 800)
+        .attr("height", 800)
+        .style("fill", "#f0f0ff");
+    
+var colorScale = d3.scaleLinear().domain([-0.5, 0.5])
+      .interpolate(d3.interpolateHcl)
+      .range([d3.rgb('#FFF500'), d3.rgb("#007AFF")])
+      //.range([d3.rgb("#007AFF"), d3.rgb('#FFF500')])
+        .clamp(true);
+var radiusScale = d3.scaleLinear().domain([-1, 1])
+        .range([10, 30])
+        .clamp(true);
+    
+function drawWeights() {
+    var newSelection = svgSelection.selectAll("circle").data(weightsAsArray());
+    newSelection.transition()
+        .duration(500)
+        .style("fill", function(d) { return colorScale(d); })
+        .attr("r", function(d) { return radiusScale(d); } );
+        
+        
+}
+    
+var data = [
+    {input: [0, 0], output: 0},
+    {input: [1, 0], output: 1},
+    {input: [0, 1], output: 1},
+    {input: [1, 1], output: 0},
+];
+    
+var activation_sigmoid = x => 1 / (1 + Math.exp(-x));
+var derivative_sigmoid = x => {
+    const fx = activation_sigmoid(x);
+    return fx * (1 - fx);
+};
+    
+var weights = {
+    /*
+    i1_h1: Math.random(),
+    i2_h1: Math.random(),
+    bias_h1: Math.random(),
+    i1_h2: Math.random(),
+    i2_h2: Math.random(),
+    bias_h2: Math.random(),
+    h1_o1: Math.random(),
+    h2_o1: Math.random(),
+    bias_o1: Math.random()
+    */
+    
+    i1_h1: Math.random()-0.5,
+    i2_h1: Math.random()-0.5,
+    bias_h1: Math.random()-0.5,
+    i1_h2: Math.random()-0.5,
+    i2_h2: Math.random()-0.5,
+    bias_h2: Math.random()-0.5,
+    h1_o1: Math.random()-0.5,
+    h2_o1: Math.random()-0.5,
+    bias_o1: Math.random()-0.5
+};   
+function weightsAsArray() {
+    var arr = [weights["i1_h1"],
+            weights["i2_h1"],
+            weights["bias_h1"],
+            
+            weights["i1_h2"],
+            weights["i2_h2"],
+            weights["bias_h2"],
+            
+            weights["h1_o1"],
+            weights["h2_o1"],
+            weights["bias_o1"]
+           ];
+    console.log(arr.map(x => Math.round(x*10)/10));
+    return arr;
+}
+
+    
+    svgSelection.selectAll("circle").data(weightsAsArray()).enter()
+        .append("circle")
+        .attr("cx", 100)
+        .attr("cy", function(d,i) { return (i+1) * 50;} )
+        .attr("r", function(d) { return radiusScale(d);}) 
+        .style("fill", function(d) { return colorScale(d); })
+    
+function nn(i1, i2) {
+    var h1_input =
+        weights.i1_h1 * i1 +
+        weights.i2_h1 * i2 +
+        weights.bias_h1;
+    var h1 = activation_sigmoid(h1_input);
+
+    var h2_input =
+        weights.i1_h2 * i1 +
+        weights.i2_h2 * i2 +
+        weights.bias_h2;
+    var h2 = activation_sigmoid(h2_input);
+
+
+    var o1_input =
+        weights.h1_o1 * h1 +
+        weights.h2_o1 * h2 +
+        weights.bias_o1;
+
+    var o1 = activation_sigmoid(o1_input);
+    
+    return o1;
+}
+    
+function getSum(total, num) {
+  return total + num;
+}
+var calculateResults = () =>
+    (data.map(({input: [i1, i2], output: y}) => Math.pow(y - nn(i1, i2), 2))).reduce(getSum, 0) / data.length;
+
+var outputResults = () => 
+    data.forEach(({input: [i1, i2], output: y}) => 
+                 console.log(`${i1} XOR ${i2} => error = ${y - nn(i1, i2)}`));
+                 //console.log(`${i1} XOR ${i2} => ${nn(i1, i2)} (expected ${y})`));
+    
+var train = () => {
+    const weight_deltas = {
+        i1_h1: 0,
+        i2_h1: 0,
+        bias_h1: 0,
+        i1_h2: 0,
+        i2_h2: 0,
+        bias_h2: 0,
+        h1_o1: 0,
+        h2_o1: 0,
+        bias_o1: 0,
+    };
+    
+    for (var {input: [i1, i2], output} of data) {
+        //this part is 100% identic to forward pass function
+        var h1_input =
+            weights.i1_h1 * i1 +
+            weights.i2_h1 * i2 +
+            weights.bias_h1;
+        var h1 = activation_sigmoid(h1_input);
+
+        var h2_input =
+            weights.i1_h2 * i1 +
+            weights.i2_h2 * i2 +
+            weights.bias_h2;
+        var h2 = activation_sigmoid(h2_input);
+
+
+        var o1_input =
+            weights.h1_o1 * h1 +
+            weights.h2_o1 * h2 +
+            weights.bias_o1;
+
+        var o1 = activation_sigmoid(o1_input);
+
+        //learning starts here:
+        // we calculate our delta
+        var delta = output - o1;
+        //then we calculate our derivative (and throwing away "2 * " as we can multiply it later)
+        var o1_delta = delta * derivative_sigmoid(o1_input);
+
+        //and for our equatation w1 * h1 + w2 * h2 we're trying to alter weights first
+        
+        weight_deltas.h1_o1 += h1 * o1_delta;
+        weight_deltas.h2_o1 += h2 * o1_delta;
+        weight_deltas.bias_o1 += o1_delta;
+        
+        //and then we're trying to alter our h1 and h2.
+        //but we cannot alter them directly, as they are functions of other weights too
+        //so we need to alter their weights by same approach 
+        
+        var h1_delta = o1_delta * derivative_sigmoid(h1_input);
+        var h2_delta = o1_delta * derivative_sigmoid(h2_input);
+        
+        weight_deltas.i1_h1 += i1 * h1_delta;
+        weight_deltas.i2_h1 += i2 * h1_delta;
+        weight_deltas.bias_h1 += h1_delta;
+        
+        weight_deltas.i1_h2 += i1 * h2_delta;
+        weight_deltas.i2_h2 += i2 * h2_delta;
+        weight_deltas.bias_h2 += h2_delta;        
+    }
+    return weight_deltas;
+}
+    
+var applyTrainUpdate = (weight_deltas = train()) => 
+    Object.keys(weights).forEach(key => weights[key] += weight_deltas[key]);
+
+    
+(function myLoop (i) {          
+   setTimeout(function () {   
+        applyTrainUpdate();
+        if (i%5 == 0) {
+            outputResults();
+        }
+        calculateResults();
+        drawWeights();
+      if (--i) myLoop(i);      //  decrement i and call myLoop again if i > 0
+   }, 1000)
+})(100); 
+    
+</script>
+</body>

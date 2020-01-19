@@ -1,2 +1,1 @@
-# NeuralDrumsJS
- 
+# Neural Net Midi (Javascript Edition) 
